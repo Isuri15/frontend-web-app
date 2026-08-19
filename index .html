@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pet Clinic - Frontend</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+  h1 { color: #2c3e50; }
+  h2 { color: #34495e; border-bottom: 2px solid #ccc; padding-bottom: 5px; }
+  .section { background: white; padding: 15px; margin-bottom: 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  input, select { padding: 6px; margin: 4px; }
+  button { padding: 6px 14px; margin: 4px; cursor: pointer; background: #2c3e50; color: white; border: none; border-radius: 4px; }
+  button:hover { background: #1a252f; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
+  th { background: #ecf0f1; }
+  .edit-btn { background: #2980b9; }
+  .edit-btn:hover { background: #1f618d; }
+  .delete-btn { background: #c0392b; }
+  .delete-btn:hover { background: #922b21; }
+  .cancel-btn { background: #7f8c8d; }
+  .cancel-btn:hover { background: #626567; }
+  .status { font-size: 13px; color: green; margin-left: 10px; }
+  .error { color: red; }
+  .editing-banner { background: #fdf2e9; border: 1px solid #e67e22; padding: 6px 10px; border-radius: 4px; margin-bottom: 8px; font-size: 13px; display: none; }
+</style>
+</head>
+<body>
+
+<h1>🐾 Pet Clinic - Management System</h1>
+<p>Frontend consumes <b>owner-service</b>, <b>pet-service</b>, <b>appointment-service</b> through the API Gateway.</p>
+
+<!-- CONFIG -->
+<div class="section">
+  <label>API Gateway Base URL: </label>
+  <input type="text" id="gatewayUrl" value="http://localhost:8080" size="30">
+  <span id="statusMsg" class="status"></span>
+</div>
+
+<!-- OWNERS -->
+<div class="section">
+  <h2>👤 Owners</h2>
+  <div class="editing-banner" id="ownerEditingBanner">✏️ Editing Owner ID: <span id="ownerEditId"></span></div>
+  <input type="text" id="ownerFirstName" placeholder="First Name">
+  <input type="text" id="ownerLastName" placeholder="Last Name">
+  <input type="text" id="ownerEmail" placeholder="Email">
+  <input type="text" id="ownerPhone" placeholder="Phone Number">
+  <input type="text" id="ownerAddress" placeholder="Address">
+  <button id="ownerSubmitBtn" onclick="submitOwner()">Add Owner</button>
+  <button class="cancel-btn" id="ownerCancelBtn" onclick="cancelOwnerEdit()" style="display:none;">Cancel</button>
+  <button onclick="loadOwners()">Refresh List</button>
+  <table id="ownersTable">
+    <thead><tr><th>ID</th><th>First Name</th><th>Last Name</th><th>Email</th><th>Phone</th><th>Address</th><th>Action</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<!-- PETS -->
+<div class="section">
+  <h2>🐶 Pets</h2>
+  <div class="editing-banner" id="petEditingBanner">✏️ Editing Pet ID: <span id="petEditId"></span></div>
+  <input type="text" id="petName" placeholder="Pet Name">
+  <input type="text" id="petSpecies" placeholder="Species (Dog/Cat...)">
+  <input type="text" id="petBreed" placeholder="Breed">
+  <input type="number" id="petAge" placeholder="Age">
+  <input type="number" id="petOwnerId" placeholder="Owner ID">
+  <button id="petSubmitBtn" onclick="submitPet()">Add Pet</button>
+  <button class="cancel-btn" id="petCancelBtn" onclick="cancelPetEdit()" style="display:none;">Cancel</button>
+  <button onclick="loadPets()">Refresh List</button>
+  <table id="petsTable">
+    <thead><tr><th>ID</th><th>Name</th><th>Species</th><th>Breed</th><th>Age</th><th>Owner ID</th><th>Action</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<!-- APPOINTMENTS -->
+<div class="section">
+  <h2>📅 Appointments</h2>
+  <div class="editing-banner" id="apptEditingBanner">✏️ Editing Appointment ID: <span id="apptEditId"></span></div>
+  <input type="number" id="apptOwnerId" placeholder="Owner ID">
+  <input type="text" id="apptPetId" placeholder="Pet ID (Mongo ID)">
+  <input type="datetime-local" id="apptDate">
+  <input type="text" id="apptReason" placeholder="Reason">
+  <select id="apptStatus">
+    <option value="PENDING">PENDING</option>
+    <option value="CONFIRMED">CONFIRMED</option>
+    <option value="COMPLETED">COMPLETED</option>
+    <option value="CANCELLED">CANCELLED</option>
+  </select>
+  <button id="apptSubmitBtn" onclick="submitAppointment()">Book Appointment</button>
+  <button class="cancel-btn" id="apptCancelBtn" onclick="cancelApptEdit()" style="display:none;">Cancel</button>
+  <button onclick="loadAppointments()">Refresh List</button>
+  <table id="appointmentsTable">
+    <thead><tr><th>ID</th><th>Owner ID</th><th>Pet ID</th><th>Date</th><th>Reason</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+function baseUrl() {
+  return document.getElementById('gatewayUrl').value.replace(/\/$/, '');
+}
+
+function showStatus(msg, isError) {
+  const el = document.getElementById('statusMsg');
+  el.textContent = msg;
+  el.className = isError ? 'status error' : 'status';
+  setTimeout(() => { el.textContent = ''; }, 3000);
+}
+
+async function apiCall(path, method = 'GET', body = null) {
+  try {
+    const options = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) options.body = JSON.stringify(body);
+    const res = await fetch(baseUrl() + path, options);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (res.status === 204) return null;
+    return await res.json();
+  } catch (err) {
+    showStatus('Error calling ' + path + ': ' + err.message, true);
+    throw err;
+  }
+}
+
+/* ============ OWNERS ============ */
+let editingOwnerId = null;
+
+async function loadOwners() {
+  const owners = await apiCall('/api/owners');
+  const tbody = document.querySelector('#ownersTable tbody');
+  tbody.innerHTML = '';
+  owners.forEach(o => {
+    tbody.innerHTML += `<tr>
+      <td>${o.id}</td><td>${o.firstName}</td><td>${o.lastName}</td>
+      <td>${o.email}</td><td>${o.phoneNumber}</td><td>${o.address}</td>
+      <td>
+        <button class="edit-btn" onclick='startEditOwner(${JSON.stringify(o)})'>Edit</button>
+        <button class="delete-btn" onclick="deleteOwner(${o.id})">Delete</button>
+      </td>
+    </tr>`;
+  });
+  showStatus('Owners loaded');
+}
+
+function startEditOwner(owner) {
+  editingOwnerId = owner.id;
+  document.getElementById('ownerFirstName').value = owner.firstName || '';
+  document.getElementById('ownerLastName').value = owner.lastName || '';
+  document.getElementById('ownerEmail').value = owner.email || '';
+  document.getElementById('ownerPhone').value = owner.phoneNumber || '';
+  document.getElementById('ownerAddress').value = owner.address || '';
+
+  document.getElementById('ownerSubmitBtn').textContent = 'Update Owner';
+  document.getElementById('ownerCancelBtn').style.display = 'inline-block';
+  document.getElementById('ownerEditingBanner').style.display = 'block';
+  document.getElementById('ownerEditId').textContent = owner.id;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelOwnerEdit() {
+  editingOwnerId = null;
+  ['ownerFirstName','ownerLastName','ownerEmail','ownerPhone','ownerAddress'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ownerSubmitBtn').textContent = 'Add Owner';
+  document.getElementById('ownerCancelBtn').style.display = 'none';
+  document.getElementById('ownerEditingBanner').style.display = 'none';
+}
+
+async function submitOwner() {
+  const owner = {
+    firstName: document.getElementById('ownerFirstName').value,
+    lastName: document.getElementById('ownerLastName').value,
+    email: document.getElementById('ownerEmail').value,
+    phoneNumber: document.getElementById('ownerPhone').value,
+    address: document.getElementById('ownerAddress').value
+  };
+
+  if (editingOwnerId) {
+    await apiCall('/api/owners/' + editingOwnerId, 'PUT', owner);
+    showStatus('Owner updated');
+    cancelOwnerEdit();
+  } else {
+    await apiCall('/api/owners', 'POST', owner);
+    showStatus('Owner created');
+  }
+  loadOwners();
+}
+
+async function deleteOwner(id) {
+  await apiCall('/api/owners/' + id, 'DELETE');
+  showStatus('Owner deleted');
+  if (editingOwnerId === id) cancelOwnerEdit();
+  loadOwners();
+}
+
+/* ============ PETS ============ */
+let editingPetId = null;
+
+async function loadPets() {
+  const pets = await apiCall('/api/pets');
+  const tbody = document.querySelector('#petsTable tbody');
+  tbody.innerHTML = '';
+  pets.forEach(p => {
+    tbody.innerHTML += `<tr>
+      <td>${p.id}</td><td>${p.name}</td><td>${p.species}</td>
+      <td>${p.breed}</td><td>${p.age}</td><td>${p.ownerId}</td>
+      <td>
+        <button class="edit-btn" onclick='startEditPet(${JSON.stringify(p)})'>Edit</button>
+        <button class="delete-btn" onclick="deletePet('${p.id}')">Delete</button>
+      </td>
+    </tr>`;
+  });
+  showStatus('Pets loaded');
+}
+
+function startEditPet(pet) {
+  editingPetId = pet.id;
+  document.getElementById('petName').value = pet.name || '';
+  document.getElementById('petSpecies').value = pet.species || '';
+  document.getElementById('petBreed').value = pet.breed || '';
+  document.getElementById('petAge').value = pet.age ?? '';
+  document.getElementById('petOwnerId').value = pet.ownerId ?? '';
+
+  document.getElementById('petSubmitBtn').textContent = 'Update Pet';
+  document.getElementById('petCancelBtn').style.display = 'inline-block';
+  document.getElementById('petEditingBanner').style.display = 'block';
+  document.getElementById('petEditId').textContent = pet.id;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelPetEdit() {
+  editingPetId = null;
+  ['petName','petSpecies','petBreed','petAge','petOwnerId'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('petSubmitBtn').textContent = 'Add Pet';
+  document.getElementById('petCancelBtn').style.display = 'none';
+  document.getElementById('petEditingBanner').style.display = 'none';
+}
+
+async function submitPet() {
+  const pet = {
+    name: document.getElementById('petName').value,
+    species: document.getElementById('petSpecies').value,
+    breed: document.getElementById('petBreed').value,
+    age: parseInt(document.getElementById('petAge').value) || 0,
+    ownerId: parseInt(document.getElementById('petOwnerId').value) || null
+  };
+
+  if (editingPetId) {
+    await apiCall('/api/pets/' + editingPetId, 'PUT', pet);
+    showStatus('Pet updated');
+    cancelPetEdit();
+  } else {
+    await apiCall('/api/pets', 'POST', pet);
+    showStatus('Pet created');
+  }
+  loadPets();
+}
+
+async function deletePet(id) {
+  await apiCall('/api/pets/' + id, 'DELETE');
+  showStatus('Pet deleted');
+  if (editingPetId === id) cancelPetEdit();
+  loadPets();
+}
+
+/* ============ APPOINTMENTS ============ */
+let editingApptId = null;
+
+async function loadAppointments() {
+  const appts = await apiCall('/api/appointments');
+  const tbody = document.querySelector('#appointmentsTable tbody');
+  tbody.innerHTML = '';
+  appts.forEach(a => {
+    tbody.innerHTML += `<tr>
+      <td>${a.id}</td><td>${a.ownerId}</td><td>${a.petId}</td>
+      <td>${a.appointmentDate}</td><td>${a.reason}</td><td>${a.status}</td>
+      <td>
+        <button class="edit-btn" onclick='startEditAppointment(${JSON.stringify(a)})'>Edit</button>
+        <button class="delete-btn" onclick="deleteAppointment(${a.id})">Delete</button>
+      </td>
+    </tr>`;
+  });
+  showStatus('Appointments loaded');
+}
+
+function startEditAppointment(appt) {
+  editingApptId = appt.id;
+  document.getElementById('apptOwnerId').value = appt.ownerId ?? '';
+  document.getElementById('apptPetId').value = appt.petId || '';
+  document.getElementById('apptDate').value = appt.appointmentDate ? appt.appointmentDate.substring(0,16) : '';
+  document.getElementById('apptReason').value = appt.reason || '';
+  document.getElementById('apptStatus').value = appt.status || 'PENDING';
+
+  document.getElementById('apptSubmitBtn').textContent = 'Update Appointment';
+  document.getElementById('apptCancelBtn').style.display = 'inline-block';
+  document.getElementById('apptEditingBanner').style.display = 'block';
+  document.getElementById('apptEditId').textContent = appt.id;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelApptEdit() {
+  editingApptId = null;
+  ['apptOwnerId','apptPetId','apptDate','apptReason'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('apptStatus').value = 'PENDING';
+  document.getElementById('apptSubmitBtn').textContent = 'Book Appointment';
+  document.getElementById('apptCancelBtn').style.display = 'none';
+  document.getElementById('apptEditingBanner').style.display = 'none';
+}
+
+async function submitAppointment() {
+  const appt = {
+    ownerId: parseInt(document.getElementById('apptOwnerId').value) || null,
+    petId: document.getElementById('apptPetId').value,
+    appointmentDate: document.getElementById('apptDate').value,
+    reason: document.getElementById('apptReason').value,
+    status: document.getElementById('apptStatus').value
+  };
+
+  if (editingApptId) {
+    await apiCall('/api/appointments/' + editingApptId, 'PUT', appt);
+    showStatus('Appointment updated');
+    cancelApptEdit();
+  } else {
+    await apiCall('/api/appointments', 'POST', appt);
+    showStatus('Appointment booked');
+  }
+  loadAppointments();
+}
+
+async function deleteAppointment(id) {
+  await apiCall('/api/appointments/' + id, 'DELETE');
+  showStatus('Appointment deleted');
+  if (editingApptId === id) cancelApptEdit();
+  loadAppointments();
+}
+
+/* Load everything on page start */
+window.onload = () => {
+  loadOwners();
+  loadPets();
+  loadAppointments();
+};
+</script>
+
+</body>
+</html>
