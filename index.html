@@ -33,14 +33,14 @@
       color:var(--ink);
       display:flex;
       min-height:100vh;
-      font-size:16px; /* Increased Base Font Size */
+      font-size:16px;
     }
     h1,h2,h3{ font-family:'Fraunces',serif; font-weight:600; margin:0; }
     .mono{ font-family:'IBM Plex Mono',monospace; }
 
     /* ---------- SIDEBAR ---------- */
     .sidebar{
-      width:320px; /* Wider Sidebar */
+      width:320px;
       flex-shrink:0;
       background:var(--pine);
       color:#EFF5F2;
@@ -70,7 +70,7 @@
       border-radius:12px 6px 6px 12px;
       color:#CFE0DA;
       text-decoration:none;
-      font-size:16px; /* Larger Sidebar Links */
+      font-size:16px;
       font-weight:600;
       cursor:pointer;
       border-left:4px solid transparent;
@@ -103,7 +103,7 @@
       gap:24px;
       flex-wrap:wrap;
     }
-    .topbar h2{ font-size:30px; } /* Larger Main Title */
+    .topbar h2{ font-size:30px; }
     .topbar p{ margin:6px 0 0; color:var(--ink-soft); font-size:16px; max-width:650px; }
 
     .gateway-config{
@@ -141,7 +141,7 @@
     .stat-card[data-k="owners"]{ --accent:var(--owner); }
     .stat-card[data-k="pets"]{ --accent:var(--pet); }
     .stat-card[data-k="appointments"]{ --accent:var(--appt); }
-    .stat-card .n{ font-family:'Fraunces',serif; font-size:48px; font-weight:600; line-height:1; } /* Larger Stat Numbers */
+    .stat-card .n{ font-family:'Fraunces',serif; font-size:48px; font-weight:600; line-height:1; }
     .stat-card .l{ margin-top:8px; font-size:15px; color:var(--ink-soft); font-weight:500; }
 
     section.panel{ display:none; }
@@ -172,7 +172,7 @@
       padding:12px 16px;
       border:1px solid var(--line);
       border-radius:10px;
-      font-size:15px; /* Larger Form Controls */
+      font-size:15px;
       font-family:'Inter',sans-serif;
       background:#FCFDFC;
     }
@@ -182,7 +182,7 @@
       padding:12px 20px;
       border:none;
       border-radius:10px;
-      font-size:15px; /* Larger Buttons */
+      font-size:15px;
       font-weight:600;
       cursor:pointer;
       font-family:'Inter',sans-serif;
@@ -197,10 +197,9 @@
     .btn-edit{ background:#EDF1EF; color:var(--ink); padding:8px 16px; font-size:14px; }
     .btn-delete{ background:var(--danger-soft); color:var(--danger); padding:8px 16px; font-size:14px; }
 
-    /* LARGER TABLE STYLES */
-    table{ width:100%; border-collapse:collapse; margin-top:12px; font-size:15px; } /* Increased Table Font */
+    table{ width:100%; border-collapse:collapse; margin-top:12px; font-size:15px; }
     th{ text-align:left; padding:14px 18px; color:var(--ink-soft); font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.04em; border-bottom:2px solid var(--line); }
-    td{ padding:16px 18px; border-bottom:1px solid #EEF2F0; vertical-align:middle; } /* Expanded Table Padding */
+    td{ padding:16px 18px; border-bottom:1px solid #EEF2F0; vertical-align:middle; }
     tbody tr:hover{ background:#FAFBFA; }
     .id-chip{ font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--ink-soft); background:#EEF2F0; padding:4px 8px; border-radius:6px; font-weight:600; }
     .empty-row td{ text-align:center; color:var(--ink-soft); padding:32px; font-style:italic; font-size:16px; }
@@ -210,6 +209,9 @@
     .badge-CONFIRMED{ background:#DEE6F5; color:#2C4677; }
     .badge-COMPLETED{ background:#DDEFE9; color:#26594C; }
     .badge-CANCELLED{ background:#F6E1DE; color:#8A382C; }
+
+    .pet-thumb{ width:40px; height:40px; object-fit:cover; border-radius:8px; border:1px solid var(--line); display:block; }
+    .pet-thumb-empty{ font-size:12px; color:var(--ink-soft); }
 
     @media (max-width:900px){
       body{ flex-direction:column; }
@@ -329,9 +331,26 @@
         <button class="btn-ghost" onclick="loadPets()">Refresh</button>
       </div>
     </div>
+
+    <div class="card">
+      <h3><span class="dot" style="background:var(--pet);width:10px;height:10px;border-radius:50%;display:inline-block;"></span> Pet photo</h3>
+      <div class="banner" id="uploadBanner" style="background:var(--pet-soft);border-color:var(--pet);color:#1F4238;display:flex;">
+        Select a pet ID and an image file, then upload. The image is stored in the Cloud Storage bucket and linked to that pet's record.
+      </div>
+      <div class="form-grid">
+        <input type="text" id="uploadPetId" placeholder="Pet ID">
+        <input type="file" id="uploadFile" accept="image/*">
+        <button class="btn-primary-pets" onclick="uploadPetImage()">Upload photo</button>
+      </div>
+      <div id="uploadPreviewWrap" style="display:none;margin-top:18px;">
+        <img id="uploadPreview" style="max-width:180px;border-radius:12px;border:1px solid var(--line);display:block;">
+        <div id="uploadUrlText" class="mono" style="font-size:12px;color:var(--ink-soft);margin-top:8px;word-break:break-all;"></div>
+      </div>
+    </div>
+
     <div class="card">
       <table id="petsTable">
-        <thead><tr><th>ID</th><th>Name</th><th>Species</th><th>Breed</th><th>Age</th><th>Owner ID</th><th>Action</th></tr></thead>
+        <thead><tr><th>ID</th><th>Photo</th><th>Name</th><th>Species</th><th>Breed</th><th>Age</th><th>Owner ID</th><th>Action</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -497,11 +516,14 @@
     const tbody = document.querySelector('#petsTable tbody');
     tbody.innerHTML = '';
     if (pets.length === 0) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No pets on file yet — add the first one above.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="8">No pets on file yet — add the first one above.</td></tr>';
     }
     pets.forEach(p => {
+      const thumb = p.imageUrl
+        ? `<img src="${p.imageUrl}" alt="${p.name}" class="pet-thumb">`
+        : `<span class="pet-thumb-empty">—</span>`;
       tbody.innerHTML += `<tr>
-      <td><span class="id-chip">${p.id}</span></td><td>${p.name}</td><td>${p.species}</td>
+      <td><span class="id-chip">${p.id}</span></td><td>${thumb}</td><td>${p.name}</td><td>${p.species}</td>
       <td>${p.breed}</td><td>${p.age}</td><td>${p.ownerId}</td>
       <td>
         <button class="btn-edit" onclick='startEditPet(${JSON.stringify(p)})'>Edit</button>
@@ -559,6 +581,37 @@
     showStatus('Pet deleted');
     if (editingPetId === id) cancelPetEdit();
     loadPets();
+  }
+
+  async function uploadPetImage() {
+    const petId = document.getElementById('uploadPetId').value.trim();
+    const fileInput = document.getElementById('uploadFile');
+    const file = fileInput.files[0];
+
+    if (!petId) { showStatus('Enter a pet ID first', true); return; }
+    if (!file) { showStatus('Choose an image file first', true); return; }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(baseUrl() + '/api/pets/' + petId + '/upload-image', {
+        method: 'POST',
+        body: formData
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const updatedPet = await res.json();
+
+      document.getElementById('uploadPreviewWrap').style.display = 'block';
+      document.getElementById('uploadPreview').src = updatedPet.imageUrl;
+      document.getElementById('uploadUrlText').textContent = updatedPet.imageUrl;
+
+      showStatus('Image uploaded and linked to pet ' + petId);
+      fileInput.value = '';
+      loadPets();
+    } catch (err) {
+      showStatus('Upload failed: ' + err.message, true);
+    }
   }
 
   /* ============ APPOINTMENTS ============ */
